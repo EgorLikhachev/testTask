@@ -5,7 +5,22 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-QT_DIR="${1:?укажите путь Qt, например ~/Qt/6.5.3/gcc_64}"
+# Каталог Qt: из аргумента, либо по qmake из PATH (install-qt-action
+# всегда добавляет Qt bin в PATH — раскладка dir у action'а менялась).
+QT_DIR="${1:-}"
+if [ -z "$QT_DIR" ] || [ ! -x "$QT_DIR/bin/qmake" ]; then
+    QBIN="$(command -v qmake || command -v qmake6 || true)"
+    if [ -n "$QBIN" ]; then
+        QT_DIR="$(cd "$(dirname "$QBIN")/.." && pwd)"
+        echo "Qt определена через PATH: $QT_DIR"
+    fi
+fi
+if [ -n "$QT_DIR" ] && [ -x "$QT_DIR/bin/qmake" ]; then
+    QT_DIR="$(cd "$QT_DIR" && pwd)"
+else
+    echo "ОШИБКА: qmake не найдена ни в '$QT_DIR', ни в PATH" >&2
+    exit 1
+fi
 BUILD_DIR="${2:-build}"
 APPDIR=AppDir
 
@@ -26,14 +41,14 @@ declare -A TOOL_URL=(
 )
 for tool in "${!TOOL_URL[@]}"; do
     if [ ! -x "$tool" ]; then
-        curl -fL --retry 5 -o "$tool" "${TOOL_URL[$tool]}"
+        curl -fsSL --retry 5 --connect-timeout 10 -o "$tool" "${TOOL_URL[$tool]}"
         chmod +x "$tool"
     fi
 done
 
-# Планин читает qmake из $QMAKE; проверяем заранее, чтобы падение
-# было с понятной причиной, а не внутри linuxdeploy.
+# Плагин qt читает qmake из $QMAKE; проверяем заранее.
 echo "== qmake: $QMAKE"
+ls -la "$QMAKE" || true
 "$QMAKE" -v || { echo "ОШИБКА: qmake недоступен по пути \$QMAKE" >&2; exit 1; }
 
 echo "== AppDir"
