@@ -1,0 +1,4 @@
+# Единые переводы строк: LF везде (скрипты исполняются в Linux/WSL).
+* text=auto eol=lf
+*.png binary
+*.wav binary
