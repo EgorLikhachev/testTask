@@ -85,7 +85,7 @@ cd testTask
 Скрипт сам найдёт Qt (`~/Qt/6.5.3/gcc_64` или `/opt/qt/6.5.3/gcc_64`), соберёт
 приложение и тесты, прогонит `ctest`. Ожидаемый результат:
 
-```
+```text
 100% tests passed, 0 tests failed out of 2
 ==> Бинарник: ~/build/mav-voice-gcs/gcs-tts   (в WSL)
             build/gcs-tts                     (нативно)
@@ -208,7 +208,7 @@ cd <каталог-репозитория>
 
 2. В MAVProxy настроить батарею и перезагрузить борт:
 
-   ```
+   ```text
    param set BATT_MONITOR 5
    param set BATT_CURR_PIN 12
    param set BATT_CAPACITY 10

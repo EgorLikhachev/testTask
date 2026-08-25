@@ -15,18 +15,26 @@ export QMAKE="$QT_DIR/bin/qmake"
 export PATH="$QT_DIR/bin:$PATH"
 
 echo "== linuxdeploy"
-for tool in linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage; do
+# Пиннутые стабильные релизы: continuous периодически ломается
+# (пример: сборка 2026-08-22 теряла $QMAKE в плагине qt).
+# Обновлять: последние теги см. github.com/linuxdeploy/linuxdeploy/releases
+LD_TAG=1-alpha-20251107-1
+LDQT_TAG=1-alpha-20250213-1
+declare -A TOOL_URL=(
+    [linuxdeploy-x86_64.AppImage]="https://github.com/linuxdeploy/linuxdeploy/releases/download/${LD_TAG}/linuxdeploy-x86_64.AppImage"
+    [linuxdeploy-plugin-qt-x86_64.AppImage]="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/${LDQT_TAG}/linuxdeploy-plugin-qt-x86_64.AppImage"
+)
+for tool in "${!TOOL_URL[@]}"; do
     if [ ! -x "$tool" ]; then
-        case "$tool" in
-            linuxdeploy-x86_64.AppImage)
-                url=https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/$tool ;;
-            *)
-                url=https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/$tool ;;
-        esac
-        curl -fL --retry 5 -o "$tool" "$url"
+        curl -fL --retry 5 -o "$tool" "${TOOL_URL[$tool]}"
         chmod +x "$tool"
     fi
 done
+
+# Планин читает qmake из $QMAKE; проверяем заранее, чтобы падение
+# было с понятной причиной, а не внутри linuxdeploy.
+echo "== qmake: $QMAKE"
+"$QMAKE" -v || { echo "ОШИБКА: qmake недоступен по пути \$QMAKE" >&2; exit 1; }
 
 echo "== AppDir"
 rm -rf "$APPDIR"
