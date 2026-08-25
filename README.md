@@ -1,235 +1,272 @@
 # mav-voice-gcs
 
 [![CI](https://github.com/EgorLikhachev/testTask/actions/workflows/ci.yml/badge.svg)](https://github.com/EgorLikhachev/testTask/actions/workflows/ci.yml)
+[![Docs](https://github.com/EgorLikhachev/testTask/actions/workflows/docs.yml/badge.svg)](https://github.com/EgorLikhachev/testTask/actions/workflows/docs.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Release](https://img.shields.io/badge/release-v0.2.0-blue.svg)](CHANGELOG.md)
+[![Platform](https://img.shields.io/badge/platform-linux-lightgrey.svg)](#prerequisites)
 
-Приёмник MAVLink-телеметрии с голосовым сопровождением ключевых событий —
-компактный аналог наземной станции (в духе QGroundControl / Mission Planner),
-заточенный под озвучку.
+**mav-voice-gcs** is a lightweight ground-control station (GCS) for ArduPilot
+vehicles that receives MAVLink telemetry over UDP and speaks out key flight
+events in Russian with a synthesized voice — like a minimal, voice-first
+cousin of QGroundControl or Mission Planner. Voice announcements cover flight
+mode changes, arming, battery warnings, onboard STATUSTEXT messages and a
+status speech on a hotkey.
 
-Репозиторий: https://github.com/EgorLikhachev/testTask
-Методика ручных испытаний: [docs/MANUAL_TESTING.md](docs/MANUAL_TESTING.md)
+> 🇷🇺 Этот документ на русском: [README.ru.md](README.ru.md)
 
-## Клонирование и «лёгкая» передача
+## Table of contents
 
-Репозиторий содержит только исходный код, скрипты и документацию (сотни КБ).
-Тяжёлые компоненты в него не входят и ставятся отдельно по инструкции ниже:
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Testing](#testing)
+- [Project structure](#project-structure)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
 
-| Компонент | Размер | Как попадает на станцию |
+## Features
+
+- **MAVLink telemetry receiver** — UDP transport, parsing with the official
+  `mavlink/c_library_v2` headers (MAVLink v1 and v2 frames).
+- **Voice announcements (Russian)** via espeak-ng:
+  - flight mode change;
+  - arm / disarm;
+  - battery below warning and critical thresholds (with hysteresis);
+  - incoming STATUSTEXT of severity WARNING or worse — verbatim;
+  - link established / lost / regained;
+  - status speech on a hotkey (altitude, ground speed, battery charge).
+- **Anti-spam** — each event type is spoken at most once per N seconds
+  (intervals live in the INI config).
+- **Non-blocking speech** — the TTS queue runs in its own thread; telemetry
+  reception never waits for speech to finish.
+- **Single-vehicle filtering** by MAVLink system id (auto-lock or explicit).
+- **Session logging** to `.tlog` (raw frames with timestamps).
+- **English UI** translation, selected automatically by system locale.
+- **Qt Widgets UI**: live telemetry, status button, mute toggle, event log.
+
+## Prerequisites
+
+| Requirement | Version | Notes |
 |---|---|---|
-| Код проекта + тесты + скрипты | ~100 КБ | сам репозиторий |
-| MAVLink C-заголовки `c_library_v2` | ~10 МБ | git-сабмодуль (`--recurse-submodules`) |
-| Qt 6.5.3 | ~1,5 ГБ | `scripts/setup_wsl.sh` (aqtinstall) или зеркало |
-| ArduPilot SITL | 3–5 ГБ | отдельный клон (в README, раздел «Симулятор») |
-| espeak-ng | ~1 МБ | apt |
+| Ubuntu Linux | 22.04 or 24.04 | native or WSL2; other distros may work |
+| CMake | ≥ 3.20 | |
+| C++ compiler | C++17 (GCC ≥ 11) | `build-essential` is enough |
+| Qt | ≥ 6.5 | Ubuntu repos only have 6.2/6.4 — install via aqtinstall below |
+| espeak-ng | any recent | speech synthesizer |
+| Python 3 | ≥ 3.10 | only for the synthetic integration test (`pymavlink`) |
+| ArduPilot SITL | optional | needed only for full integration testing |
+
+## Installation
+
+### 1. Clone with submodules
 
 ```bash
 git clone --recurse-submodules https://github.com/EgorLikhachev/testTask.git
+cd testTask
 ```
 
-Полностью автономный проект: никаких зависимостей от других репозиториев
-пользователя. Связь только с внешними открытыми компонентами:
+`--recurse-submodules` fetches the MAVLink C headers (`extern/c_library_v2`,
+~10 MB). Without them the build fails on
+`#include <ardupilotmega/mavlink.h>`.
 
-- **ArduPilot SITL (ArduCopter)** — симулятор, источник телеметрии;
-- **mavlink/c_library_v2** — официальные сгенерированные C-заголовки MAVLink 2
-  (подключена git-сабмодулем в `extern/c_library_v2`);
-- **espeak-ng** — синтезатор речи (внешний процесс);
-- **Qt 6.5+** — событийный цикл, UDP, GUI.
-
-## Архитектура
-
-Слои строго разделены по каталогам, поток данных слева направо:
-
-```
-транспорт          парсер MAVLink          доменная модель           TTS
-UdpTransport  ->   MavlinkParser      ->   VehicleState /        ->  Announcer -> TtsQueue -> EspeakBackend
-(QUdpSocket)       (c_library_v2,           EventDetector /           (антиспам,   (QThread,   (QProcess
-                    + CopterModes,           AntiSpamFilter             фразы ru)    очередь)    espeak-ng)
-                    + MavlinkCommands)
-```
-
-| Слой | Файлы | Ответственность |
-|---|---|---|
-| Транспорт | `src/transport/UdpTransport.*` | UDP-сокет: приём/отправка байтов, адрес пира |
-| Парсер | `src/mavlink/*` | `mavlink_parse_char`, декодирование, имена режимов, сборка исходящих сообщений |
-| Домен | `src/domain/*` | `VehicleState` (снимок телеметрии), `EventDetector` (события), `AntiSpamFilter` |
-| Озвучка | `src/announce/Announcer.*` | события → русские фразы + антиспам |
-| TTS | `src/tts/*` | очередь в отдельном потоке, бэкенд espeak-ng |
-| UI | `src/ui/MainWindow.*` | телеметрия, кнопка статуса, мьют, лог |
-| Связка | `src/app/Application.*` | соединение всех слоёв |
-
-Ключевое свойство потоков: приём и парсинг телеметрии идут в главном потоке
-(событийный цикл, лёгкие операции), а говорение — в отдельном `QThread`
-с очередью ограниченного размера. Долгий синтез никогда не блокирует приём.
-
-## Озвучиваемые события
-
-- смена режима полёта (HEARTBEAT → custom_mode, таблица ArduCopter);
-- arm / disarm (HEARTBEAT → `MAV_MODE_FLAG_SAFETY_ARMED`);
-- падение заряда ниже порогов warning / critical (SYS_STATUS / BATTERY_STATUS),
-  с гистерезисом, чтобы предупреждающий порог не «мигал» на границе;
-- входящие STATUSTEXT уровня WARNING и тяжелее — дословно;
-- установление / потеря / восстановление связи с бортом (`[link]`);
-- статус по горячей клавише (по умолчанию F2): высота, скорость, заряд.
-
-Дополнительно: фильтр по sysid борта (`vehicle_sysid`, авто-захват первого
-валидного), дедупликация фраз в очереди TTS, запись телеметрии сессии
-в `.tlog`, английский интерфейс по локали (`translations/`).
-
-Антиспам: каждое событие озвучивается не чаще раза в N секунд; интервалы —
-в `config/gcs-tts.ini`. Для STATUSTEXT ключ антиспама строится по тексту
-сообщения, разные сообщения друг друга не блокируют; потеря и восстановление
-связи имеют раздельные ключи. Таблица антиспама ограничена (512 ключей) —
-память не растёт на длинных сессиях.
-
-## Сборка (Ubuntu 22.04/24.04, в т.ч. WSL2)
-
-Требования: CMake 3.20+, gcc/g++ с C++17, Qt 6.5+ (в репозиториях Ubuntu
-максимум 6.4, поэтому Qt ставится через aqtinstall), espeak-ng.
+### 2. Install system packages
 
 ```bash
-# 1. один раз — окружение (пакеты + Qt 6.5.3)
-./scripts/setup_wsl.sh
+sudo apt-get update
+sudo apt-get install -y build-essential cmake ninja-build git python3 python3-pip \
+    espeak-ng libgl1-mesa-dev libgl-dev libopengl-dev libegl-dev libglx-dev \
+    libxkbcommon-x11-0 libxcb-xinerama0 libxcb-cursor0 libfontconfig1 libdbus-1-3 \
+    libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 \
+    libxcb-randr0 libxcb-xfixes0 p7zip-full
+```
 
-# 2. сборка + юнит-тесты
+Quick voice check (in WSL2 the sound plays on the Windows host via WSLg):
+
+```bash
+espeak-ng -v ru "Проверка голосового модуля"
+```
+
+### 3. Install Qt 6.5+
+
+Ubuntu repositories ship Qt 6.2/6.4, which is below the required 6.5.
+Use [aqtinstall](https://aqtinstall.readthedocs.io/):
+
+```bash
+python3 -m pip install --user --break-system-packages aqtinstall
+~/.local/bin/aqt install-qt linux desktop 6.5.3 gcc_64 -O ~/Qt
+```
+
+If `download.qt.io` is unreachable from your network (aqt fails downloading
+checksums), fetch two archives from any mirror, e.g.
+`mirrors.ocf.berkeley.edu/qt/online/qtsdkrepository/linux_x64/desktop/qt6_653/qt.qt6.653.gcc_64/`:
+
+```bash
+S=6.5.3-0-202309260341
+curl -fLO "${S}qtbase-Linux-RHEL_8_4-GCC-Linux-RHEL_8_4-X86_64.7z"
+curl -fLO "${S}icu-linux-Rhel7.2-x64.7z"
+curl -fLO "${S}qttools-Linux-RHEL_8_4-GCC-Linux-RHEL_8_4-X86_64.7z"
+sudo mkdir -p /opt/qt && sudo 7z x -y -o/opt/qt ./*.7z && sudo chmod -R a+rX /opt/qt
+```
+
+### 4. Build and run unit tests
+
+```bash
 ./scripts/build.sh
 ```
 
-Запуск:
+The script auto-detects Qt (`~/Qt/6.5.3/gcc_64`, `/opt/qt/6.5.3/gcc_64`),
+builds with Ninja and runs `ctest`. Expected result:
 
-```bash
-./build/gcs-tts --config config/gcs-tts.ini
+```text
+100% tests passed, 0 tests failed out of 3
+==> Бинарник: ~/build/mav-voice-gcs/gcs-tts   (in WSL)
+            build/gcs-tts                     (native)
 ```
 
-В WSL скрипт сборки кладёт каталог сборки в `~/build/mav-voice-gcs`
-(на `/mnt/*` CMake неверно определяет архитектуру библиотек — см. раздел
-«Грабли» ниже). Озвучку без аудио можно проверить записью в WAV:
+> Under WSL2 the build directory is placed in the Linux home (`~/build/...`)
+> automatically: CMake cannot resolve system libraries on `/mnt/*` mounts.
 
-```bash
-GCS_TTS_WAV_DIR=/tmp/gcs-wav ./build/gcs-tts   # фразы -> WAV-файлы
-```
+## Configuration
 
-## Симулятор (SITL)
+The application reads an INI file; every key is optional and falls back to a
+built-in default. Full reference with all keys, defaults and units:
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
-```bash
-# один раз: клонирование и зависимости ArduPilot
-sudo apt install -y git python3 python3-pip
-git clone --recurse-submodules https://github.com/ArduPilot/ardupilot.git ~/ardupilot
-cd ~/ardupilot
-Tools/environment_install/install-prereqs-ubuntu.sh -y
+Config lookup order (first existing wins):
 
-# каждый запуск: ArduCopter, MAVLink на udp:127.0.0.1:14550
-./scripts/sitl.sh          # из каталога проекта
-# (скрипт сам найдёт sim_vehicle.py — в свежем ArduPilot он в Tools/autotest)
-```
+1. path passed with `--config <path>`;
+2. `<binary dir>/gcs-tts.ini`;
+3. `<binary dir>/../config/gcs-tts.ini`;
+4. `<binary dir>/../../config/gcs-tts.ini`;
+5. `<binary dir>/../share/mav-voice-gcs/gcs-tts.ini` (AppImage).
 
-Управление бортом для проверки сценариев — в консоли MAVProxy:
-`mode LOITER`, `arm throttle`, `disarm`, `param set ...`.
+Most-used sections of `config/gcs-tts.ini`:
 
-## Проверка сценариев ТЗ (интеграционная)
-
-| Пункт ТЗ | Как проверить |
+| Section | Purpose |
 |---|---|
-| Смена режима | MAVProxy: `mode GUIDED` → фраза «Режим полёта: наведение» |
-| Arm / disarm | MAVProxy: `arm throttle` → «Внимание! Моторы запущены»; `disarm` → «Моторы остановлены» |
-| Батарея warning/critical | поднять пороги: `param set BATT_LOW 99` → фраза о низком заряде; вернуть обратно |
-| STATUSTEXT WARNING+ | ArduPilot сам шлёт их (например, при разряде); MAVProxy: `param set SIM_BATT_VOLTAGE 10.5` |
-| Статус по хоткею | F2 в окне приложения → высота/скорость/заряд |
-| Антиспам N секунд | дважды сменить режим туда-обратно быстрее `mode_change_sec` — вторая фраза подавится (видно в логе) |
-| TTS не блокирует приём | поколачивать MAVProxy statustext'ами и следить, что «сообщ/с» в окне не проседает |
+| `[udp]` | listen port, GCS sysid/compid, target `vehicle_sysid` (0 = auto) |
+| `[battery]` | warning / critical thresholds, hysteresis margin |
+| `[link]` | silence window that triggers "link lost" |
+| `[antispam]` | per-event minimum repeat intervals (seconds) |
+| `[tts]` | espeak-ng program, voice, speed, queue limit, WAV retention |
+| `[log]` | `.tlog` session recording on/off and directory |
+| `[hotkey]` | status speech hotkey (default `F2`) |
 
-Проверка TTS без аудио (WSL): `./scripts/smoke_tts.sh` или запуск приложения
-с `GCS_TTS_WAV_DIR=/tmp/gcs-wav` — фразы пишутся в WAV-файлы.
+Environment variables:
 
-## Интеграционные проверки
+| Variable | Default | Description |
+|---|---|---|
+| `GCS_TTS_WAV_DIR` | unset | when set, every phrase is additionally written as a WAV file into this directory (useful where audio output is unavailable); only the last `wav_keep` files are kept |
+| `QT_QPA_PLATFORM` | unset | Qt platform plugin; set `offscreen` for headless runs |
 
-Два уровня:
+## Usage
 
-1. **Синтетический (без ArduPilot, ~40 с)** — `scripts/synthetic_test.sh`.
-   Python-драйвер генерирует MAVLink-кадры (heartbeat, SYS_STATUS,
-   STATUSTEXT) и проверяет фразы в логе приложения: режимы, arm/disarm,
-   пороги батареи, дословный STATUSTEXT, потеря/восстановление связи,
-   антиспам, дошла ли очередь до синтеза (WAV). Работает в CI.
-2. **Полный с SITL** — `scripts/integration.sh`: приложение + arducopter +
-   мост-драйвер, 11 проверок по всем пунктам ТЗ.
+### Start the simulator (optional, for testing)
 
-Последний прогон обоих: все проверки PASS.
-
-Оговорка: процент заряда (SYS_STATUS.battery_remaining) в полном сценарии
-инжектируется мостом синтетически — SITL с дефолтным `BATT_MONITOR=4`
-не отдаёт процент; задача проверки — цепочка приложения, а не симулятор
-батареи ArduPilot.
-
-## Готовые сборки (AppImage)
-
-CI собирает самодостаточный AppImage (задача `appimage`, ubuntu-22.04):
-артефакт каждого запуска и вложение к релизам `v*`. На целевой машине нужен
-только `espeak-ng`:
+See [Setting up ArduPilot SITL](docs/MANUAL_TESTING.md#2-подготовка-стенда-однократно)
+or the quick version:
 
 ```bash
-sudo apt install -y espeak-ng libxcb-xinerama0
+git clone --recurse-submodules https://github.com/ArduPilot/ardupilot.git ~/ardupilot
+cd ~/ardupilot && Tools/environment_install/install-prereqs-ubuntu.sh -y
+./waf configure --board sitl && ./waf copter
+./build/sitl/bin/arducopter --model quad -I0          # TCP 5760
+mavproxy.py --master tcp:127.0.0.1:5760 --out=udp:127.0.0.1:14550
+```
+
+### Start the application
+
+```bash
+~/build/mav-voice-gcs/gcs-tts --config config/gcs-tts.ini
+```
+
+The window shows mode, ARM state, battery, altitude, speed, link status and
+message rate. Press `F2` (or the **Статус** button) for the status speech,
+toggle **Озвучка** to mute. Announced phrases are printed to the console log
+and to the in-window event log.
+
+Headless run with phrases captured as WAV files:
+
+```bash
+mkdir -p /tmp/gcs-wav
+GCS_TTS_WAV_DIR=/tmp/gcs-wav QT_QPA_PLATFORM=offscreen \
+    ~/build/mav-voice-gcs/gcs-tts --config config/gcs-tts.ini
+ls /tmp/gcs-wav    # one WAV per spoken phrase
+```
+
+### Prebuilt AppImage
+
+CI builds a self-contained AppImage (see [Releases](https://github.com/EgorLikhachev/testTask/releases)).
+On the target machine only `espeak-ng` is required:
+
+```bash
+sudo apt-get install -y espeak-ng libxcb-xinerama0
 ./mav-voice-gcs-x86_64.AppImage
 ```
 
-Локальная сборка AppImage: `packaging/make_appimage.sh <путь-Qt> <каталог-сборки>`.
+Build one locally: `packaging/make_appimage.sh <qt-dir> <build-dir>`.
 
-## Грабли, на которые наступили (WSL2)
+## Testing
 
-- **Сеть WSL пропала** (хост-интернет есть): файрвол Windows фильтровал
-  vEthernet (WSL) профилем Public. Лечится разрешающим правилом:
-  `New-NetFirewallRule -DisplayName 'WSL allow' -Direction Inbound
-  -Action Allow -InterfaceAlias 'vEthernet (WSL)' -Profile Any`.
-- **download.qt.io недоступен** (aqt падает на скачивании контрольных
-  сумм): Qt ставится вручную с зеркала, например
-  `mirrors.ocf.berkeley.edu/qt/online/qtsdkrepository/linux_x64/desktop/
-  qt6_653/qt.qt6.653.gcc_64/` — архивы `qtbase` и `icu`, распаковать в
-  `/opt/qt` (структура `6.5.3/gcc_64` сохраняется).
-- **Сборка в каталоге на `/mnt/c`**: CMake не находит системные библиотеки
-  (неверно определяет `CMAKE_LIBRARY_ARCHITECTURE`) — каталог сборки
-  должен лежать в ext4 (build.sh делает это сам).
-- **Свежий ArduPilot**: `sim_vehicle.py` теперь только в
-  `Tools/autotest/` (корневой обёртки нет) — scripts/sitl.sh это учитывает.
+| Level | Command | What it covers |
+|---|---|---|
+| Unit tests | `ctest --test-dir build --output-on-failure` | parser (junk/split frames, chunked STATUSTEXT, sysid filter, tlog round-trip), event detector, anti-spam, link monitor, TTS queue |
+| Synthetic integration | `./scripts/synthetic_test.sh` | full pipeline against generated MAVLink frames — no ArduPilot needed |
+| Full SITL integration | `./scripts/integration.sh` | application + ArduCopter SITL + scripted flight events, 11 checks |
+| Manual acceptance | [docs/MANUAL_TESTING.md](docs/MANUAL_TESTING.md) | step-by-step manual test methodology |
+| Documentation checks | CI workflow `Docs` | markdownlint + link checking |
 
-## Конфигурация
+## Project structure
 
-`config/gcs-tts.ini`; все ключи опциональны. Основные секции: `[udp]`
-(порт/адрес, `vehicle_sysid` — какой борт слушать), `[battery]` (пороги и
-гистерезис), `[link]` (окно потери связи), `[antispam]` (интервалы),
-`[tts]` (программа, голос, скорость, размер очереди, `wav_keep`),
-`[log]` (запись `.tlog`), `[hotkey]` (клавиша). Формат tlog: перед каждым
-MAVLink-кадром 8 байт LE — микросекунды с Unix-эпохи.
-
-## Тесты
-
-```bash
-ctest --test-dir build --output-on-failure   # или ~/build/mav-voice-gcs в WSL
+```text
+src/
+  config/      AppConfig — INI file to typed configuration
+  transport/   UdpTransport — QUdpSocket, bytes in/out only
+  mavlink/     MavlinkParser (c_library_v2, sysid filter), CopterModes, MavlinkCommands
+  domain/      VehicleState, EventDetector, AntiSpamFilter, LinkMonitor
+  telemetry/   TlogWriter — session recording to .tlog
+  announce/    Announcer — events to Russian phrases + anti-spam
+  tts/         ITtsBackend, EspeakBackend (QProcess), TtsQueue (worker thread)
+  ui/          MainWindow — telemetry, status button, mute, event log
+  app/         Application — wiring of all layers
+tests/         tst_parser, tst_domain, tst_tts
+scripts/       build, setup, SITL runner, synthetic & full integration tests
+packaging/     desktop file, icon, AppImage script
+translations/  English UI translation (Qt .ts/.qm)
+config/        gcs-tts.ini (runtime), gcs-tts-integration.ini (testing)
+docs/          architecture, configuration, testing methodology
+extern/        mavlink c_library_v2 (git submodule)
 ```
 
-`tst_parser` — кадры с мусором и разрывами, склейка чанков STATUSTEXT,
-фильтр sysid, tlog-roundtrip; `tst_domain` — детектор событий (гистерезис
-батареи, arm-фронты), антиспам (включая потолок таблицы), состояния
-LinkMonitor, формулировки фраз; `tst_tts` — дедупликация и переполнение
-очереди, мьют. CI прогоняет всё это плюс синтетический интеграционный тест.
+Layer contract and data flow are described in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Состав репозитория
+## Documentation
 
-```
-src/config      AppConfig: ini → параметры (порт, пороги, антиспам, TTS, лог)
-src/transport   UdpTransport: QUdpSocket, только байты
-src/mavlink     MavlinkParser (c_library_v2, фильтр sysid), CopterModes, MavlinkCommands
-src/domain      VehicleState, EventDetector, AntiSpamFilter, LinkMonitor
-src/announce    Announcer: события → русские фразы + антиспам
-src/telemetry   TlogWriter: запись сессии в .tlog
-src/tts         ITtsBackend, EspeakBackend (QProcess), TtsQueue (QThread, дедуп)
-src/ui          MainWindow: телеметрия, «Статус (F2)», мьют, лог
-src/app         Application: связка слоёв
-tests/          tst_parser, tst_domain, tst_tts
-translations/   mav-voice-gcs_en.ts (+ .qm при сборке)
-packaging/      desktop-файл, иконка, make_appimage.sh
-scripts/        setup_wsl.sh, build.sh, sitl.sh, synthetic_test.sh,
-                integration.sh, sitl_bridge.py, smoke_tts.sh
-extern/         c_library_v2 (git-сабмодуль)
-config/         gcs-tts.ini (рабочий), gcs-tts-integration.ini (тестовый)
-docs/           MANUAL_TESTING.md — методика ручных испытаний
-```
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — layers, threading, event pipeline
+- [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — every configuration key explained
+- [docs/MANUAL_TESTING.md](docs/MANUAL_TESTING.md) — manual acceptance testing methodology
+- [CHANGELOG.md](CHANGELOG.md) — release history
+- [README.ru.md](README.ru.md) — README in Russian
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Pull requests are checked by CI
+(build, unit tests, synthetic integration test, documentation lint).
+
+## License
+
+Distributed under the [MIT License](LICENSE).
+
+## Acknowledgements
+
+- [ArduPilot](https://ardupilot.org/) — SITL simulator and flight-mode semantics
+- [MAVLink](https://mavlink.io/) / [c_library_v2](https://github.com/mavlink/c_library_v2) — protocol and C headers
+- [Qt](https://www.qt.io/) — application and UI framework
+- [espeak-ng](https://github.com/espeak-ng/espeak-ng) — speech synthesis
+- [aqtinstall](https://aqtinstall.readthedocs.io/) — Qt installation tooling

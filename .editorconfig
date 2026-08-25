@@ -1,0 +1,29 @@
+; EditorConfig keeps basic formatting identical across editors and OSes.
+; https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{c,h,cpp,hpp}]
+indent_style = space
+indent_size = 4
+
+[*.{md,markdown}]
+; two trailing spaces would be needed for hard line breaks; we avoid them
+trim_trailing_whitespace = false
+
+[*.{yml,yaml,json,py,sh,desktop,ts}]
+indent_style = space
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+
+[*.ini]
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = false

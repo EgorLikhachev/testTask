@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & support
+    url: https://github.com/EgorLikhachev/testTask/blob/main/SUPPORT.md
+    about: Check SUPPORT.md for documentation and the right channel before opening an issue.

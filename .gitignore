@@ -7,4 +7,14 @@ logs/
 .idea/
 .vscode/
 .cache/
+.clangd/
 compile_commands.json
+
+# Packaging artifacts (linuxdeploy downloads into the repo root)
+AppDir/
+*.AppImage
+make_appimage.log
+
+# Python tooling used by the test scripts
+__pycache__/
+*.pyc

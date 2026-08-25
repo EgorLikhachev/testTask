@@ -1,53 +1,57 @@
 # Changelog
 
-Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
-версионирование — [SemVer](https://semver.org/lang/ru/).
+All notable changes to this project are documented in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
 ## [0.2.0] — 2026-08-25
 
-### Добавлено
+### Added
 
-- Озвучка состояния канала: «Связь с бортом установлена», «Потеря связи
-  с бортом», «Связь с бортом восстановлена» (монитор `LinkMonitor`, окно
-  и интервал антиспама — в конфиге, секция `[link]`).
-- Фильтр по sysid борта: `vehicle_sysid` в `[udp]` (0 — авто-захват первого
-  валидного борта; сообщения чужих систем игнорируются).
-- Запись телеметрии сессии в `.tlog` (сырые MAVLink-кадры с 8-байтовой
-  меткой времени): секция `[log]`.
-- Повторный запрос потоков сообщений после восстановления связи
-  (раньше запрашивался один раз за запуск).
-- Дедупликация в очереди TTS: повторная идентичная фраза не встаёт в очередь.
-- Автоматическая CI: сборка, ctest, синтетический интеграционный тест
-  (GitHub Actions) + сборка AppImage и публикация к релизу по тегу.
-- Синтетический интеграционный тест без ArduPilot
-  (`scripts/synthetic_test.sh`): полный сценарий ТЗ на генерируемых кадрах.
-- Локализация: английский перевод UI (`translations/`, `QLocale`-выбор).
-- Лицензия MIT, CHANGELOG, бейдж CI.
+- Voice announcements for link state: “Связь с бортом установлена”,
+  “Потеря связи с бортом”, “Связь с бортом восстановлена”
+  (`LinkMonitor`, `[link]` config section, separate anti-spam keys).
+- Vehicle filtering by MAVLink system id: `vehicle_sysid` in `[udp]`
+  (0 = auto-lock the first valid vehicle; other systems are ignored).
+- Session telemetry recording to `.tlog` (raw MAVLink frames prefixed with
+  8-byte little-endian microsecond timestamps): `[log]` config section.
+- Message-stream request is re-issued after the link is regained (a
+  rebooted vehicle used to stay silent for the rest of the session).
+- Deduplication in the TTS queue: an identical phrase already queued or
+  being spoken is not enqueued again.
+- CI (GitHub Actions): build + ctest + synthetic integration test
+  (pymavlink-generated frames, no ArduPilot required), AppImage packaging
+  job with release attachment on `v*` tags, documentation checks.
+- Synthetic integration test without ArduPilot
+  (`scripts/synthetic_test.sh`) covering the full pipeline.
+- English UI translation (`translations/`, selected by `QLocale`).
+- MIT license, this changelog, repository templates and community files.
 
-### Изменено
+### Changed
 
-- Очистка WAV-каталога в режиме `GCS_TTS_WAV_DIR`: хранятся последние
-  `wav_keep` файлов (по умолчанию 64).
-- Потолок таблицы антиспама (512 ключей) — память не растёт на длинных
-  сессиях с потоком уникальных STATUSTEXT.
+- WAV debug output (`GCS_TTS_WAV_DIR`) now keeps only the last `wav_keep`
+  files (default 64) instead of growing indefinitely.
+- Anti-spam key table is capped at 512 entries — memory no longer grows on
+  long sessions with a stream of unique STATUSTEXT messages.
 
 ## [0.1.0] — 2026-08-23
 
-Первый выпуск.
+Initial release.
 
-- Слои по ТЗ: UDP-транспорт → парсер MAVLink (c_library_v2) → доменная
-  модель → русская голосовая озвучка (espeak-ng через QProcess).
-- События: смена режима полёта, arm/disarm, пороги батареи warning/critical
-  с гистерезисом, STATUSTEXT WARNING+ дословно, статус по хоткею
-  (высота/скорость/заряд).
-- Антиспам по типам событий (интервалы в INI-конфиге).
-- Очередь TTS в отдельном потоке — не блокирует приём телеметрии.
-- Окно Qt Widgets: телеметрия, кнопка статуса, мьют, лог событий.
-- Юнит-тесты (парсер, детектор, антиспам) и автоматический интеграционный
-  сценарий с ArduPilot SITL (`scripts/integration.sh`, 11/11 PASS).
-- Методика ручных испытаний: `docs/MANUAL_TESTING.md`.
+- Layered architecture per spec: UDP transport → MAVLink parser
+  (c_library_v2) → domain model → Russian voice announcements (espeak-ng
+  via QProcess).
+- Announced events: flight mode change, arm/disarm, battery warning and
+  critical thresholds with hysteresis, STATUSTEXT of severity WARNING or
+  worse verbatim, status speech on a hotkey (altitude / speed / battery).
+- Per-event-type anti-spam with intervals from an INI config.
+- TTS queue in a worker thread — speech never blocks telemetry reception.
+- Qt Widgets window: telemetry, status button, mute, event log.
+- Unit tests (parser, event detector, anti-spam) and an automated SITL
+  integration scenario (`scripts/integration.sh`).
+- Manual acceptance testing methodology: `docs/MANUAL_TESTING.md`.
 
 [Unreleased]: https://github.com/EgorLikhachev/testTask/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/EgorLikhachev/testTask/compare/v0.1.0...v0.2.0
