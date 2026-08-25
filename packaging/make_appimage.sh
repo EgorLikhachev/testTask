@@ -30,12 +30,13 @@ done
 
 echo "== AppDir"
 rm -rf "$APPDIR"
-mkdir -p "$APPDIR/usr/share/mav-voice-gcs/translations"
-cp "$BUILD_DIR/gcs-tts" "$APPDIR/usr/bin/" 2>/dev/null \
-    || { mkdir -p "$APPDIR/usr/bin"; cp "$BUILD_DIR/gcs-tts" "$APPDIR/usr/bin/"; }
-cp config/gcs-tts.ini "$APP_DIR/usr/share/mav-voice-gcs/"
+mkdir -p "$APPDIR/usr/bin/translations" "$APPDIR/usr/share/mav-voice-gcs"
+cp "$BUILD_DIR/gcs-tts" "$APPDIR/usr/bin/"
+# конфиг: usr/bin/../share/mav-voice-gcs — один из кандидатов main.cpp
+cp config/gcs-tts.ini "$APPDIR/usr/share/mav-voice-gcs/"
+# переводы: usr/bin/translations — куда смотрит QTranslator
 if compgen -G "$BUILD_DIR/translations/*.qm" > /dev/null; then
-    cp "$BUILD_DIR"/translations/*.qm "$APPDIR/usr/share/mav-voice-gcs/translations/"
+    cp "$BUILD_DIR"/translations/*.qm "$APPDIR/usr/bin/translations/"
 fi
 
 echo "== сборка AppImage"
