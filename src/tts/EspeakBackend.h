@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QProcess>
+#include <QQueue>
 #include <QString>
 
 #include "tts/ITtsBackend.h"
@@ -12,7 +13,8 @@ namespace gcs {
 
 // Синтез через внешний процесс espeak-ng (Linux).
 // Поддерживает режим отладки без аудио: озвучка пишется в WAV-файлы
-// (setWaveDir), полезно в WSL без звука.
+// (setWaveDir), полезно в WSL без звука. Хранятся только последние
+// wavKeep файлов (0 — без очистки).
 class EspeakBackend : public ITtsBackend
 {
     Q_OBJECT
@@ -26,6 +28,7 @@ public:
     void speak(const QString &text) override;
 
     void setWaveDir(const QString &dir) { m_waveDir = dir; }
+    void setWaveKeep(int keep) { m_waveKeep = qMax(0, keep); }
 
 public slots:
     // Вызывается уже в рабочем потоке (после moveToThread).
@@ -39,6 +42,8 @@ private:
     QString m_voice;
     int m_speed = 150;
     QString m_waveDir;
+    int m_waveKeep = 64;
+    QQueue<QString> m_waveFiles; // журналируется только в режиме WAV
     bool m_ready = false;
     bool m_checked = false;
     QProcess *m_proc = nullptr;

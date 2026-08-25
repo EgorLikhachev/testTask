@@ -29,6 +29,19 @@ void TtsQueue::enqueue(const QString &phrase, int priority)
         return;
     }
 
+    // Дедупликация: фраза, уже стоящая в очереди (или произносимая сейчас),
+    // повторно не ставится.
+    if (text == m_speaking) {
+        qInfo("[tts] дубликат отброшен (произносится): %s", qPrintable(text));
+        return;
+    }
+    for (const Item &it : std::as_const(m_queue)) {
+        if (it.text == text) {
+            qInfo("[tts] дубликат отброшен (в очереди): %s", qPrintable(text));
+            return;
+        }
+    }
+
     if (priority >= tts::PriorityImmediate || priority == tts::PriorityCritical)
         m_queue.prepend(Item{text, priority});
     else
@@ -76,6 +89,7 @@ void TtsQueue::pump()
         return;
     m_busy = true;
     const Item it = m_queue.dequeue();
+    m_speaking = it.text;
     emit queueChanged(m_queue.size());
     qInfo("[tts] говорю: %s", qPrintable(it.text));
     emit phraseStarted(it.text);
@@ -85,6 +99,7 @@ void TtsQueue::pump()
 void TtsQueue::onBackendFinished()
 {
     m_busy = false;
+    m_speaking.clear();
     pump();
 }
 

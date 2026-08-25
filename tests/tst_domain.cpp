@@ -4,6 +4,7 @@
 #include "config/AppConfig.h"
 #include "domain/AntiSpamFilter.h"
 #include "domain/EventDetector.h"
+#include "domain/LinkMonitor.h"
 #include "domain/VehicleState.h"
 #include "mavlink/CopterModes.h"
 #include "tts/ITtsBackend.h"
@@ -43,6 +44,8 @@ private slots:
     void statustextSeverityFilter();
     void antispamRealClock();
     void antispamInjectedTime();
+    void antispamTableCap();
+    void linkMonitorStates();
     void copterModesTable();
     void statusPhrase();
     void modePhrase();
@@ -165,6 +168,49 @@ void TestDomain::antispamInjectedTime()
     QVERIFY(!f.allowMs("k", 5000, 100));
     QVERIFY(!f.allowMs("k", 5000, 4999));
     QVERIFY(f.allowMs("k", 5000, 5000)); // ровно интервал — уже можно
+}
+
+void TestDomain::antispamTableCap()
+{
+    AntiSpamFilter f;
+    // Первый ключ заблокирован на огромный интервал…
+    QVERIFY(f.allowMs("k0", 1000000, 0));
+    QVERIFY(!f.allowMs("k0", 1000000, 100));
+
+    // …но после заполнения таблицы до потолка она очищается целиком,
+    // и «вечная» блокировка не живёт вечно.
+    for (int i = 0; i < AntiSpamFilter::kMaxEntries; ++i)
+        f.allowMs(QStringLiteral("other%1").arg(i), 0, 100);
+    QVERIFY(f.allowMs("k0", 1000000, 200));
+}
+
+void TestDomain::linkMonitorStates()
+{
+    VehicleState state;
+    // Окно 300 мс, опрос каждые 50 мс — тест идёт меньше двух секунд.
+    LinkMonitor mon(&state, 300, 50);
+    QSignalSpy est(&mon, &LinkMonitor::linkEstablished);
+    QSignalSpy lost(&mon, &LinkMonitor::linkLost);
+    QSignalSpy reg(&mon, &LinkMonitor::linkRegained);
+
+    // До трафика — тишина.
+    QTest::qWait(150);
+    QCOMPARE(est.count(), 0);
+
+    state.onAnyMessage();
+    QTRY_COMPARE_WITH_TIMEOUT(est.count(), 1, 1000); // установлена
+    QCOMPARE(lost.count(), 0);
+
+    QTRY_COMPARE_WITH_TIMEOUT(lost.count(), 1, 2000); // пропала
+    QCOMPARE(reg.count(), 0);
+
+    state.onAnyMessage();
+    QTRY_COMPARE_WITH_TIMEOUT(reg.count(), 1, 1000); // восстановлена
+    // Повторный трафик не плодит новые фронты.
+    state.onAnyMessage();
+    QTest::qWait(150);
+    QCOMPARE(est.count(), 1);
+    QCOMPARE(reg.count(), 1);
 }
 
 void TestDomain::copterModesTable()

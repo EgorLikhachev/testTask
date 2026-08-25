@@ -1,9 +1,12 @@
 #include <QtTest>
 
 #include <cstring>
+#include <QFile>
+#include <QTemporaryDir>
 
 #include "mavlink/CopterModes.h"
 #include "mavlink/MavlinkParser.h"
+#include "telemetry/TlogWriter.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
@@ -23,12 +26,12 @@ QByteArray pack(const mavlink_message_t &msg)
     return QByteArray(reinterpret_cast<const char *>(buf), len);
 }
 
-QByteArray heartbeatFrame(quint32 customMode, bool armed)
+QByteArray heartbeatFrame(quint32 customMode, bool armed, quint8 sysid = 1)
 {
     mavlink_message_t msg;
     const quint8 base = MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
                         | (armed ? MAV_MODE_FLAG_SAFETY_ARMED : 0);
-    mavlink_msg_heartbeat_pack(1, 1, &msg, MAV_TYPE_QUADROTOR,
+    mavlink_msg_heartbeat_pack(sysid, 1, &msg, MAV_TYPE_QUADROTOR,
                                MAV_AUTOPILOT_ARDUPILOTMEGA, base, customMode,
                                MAV_STATE_ACTIVE);
     return pack(msg);
@@ -72,6 +75,9 @@ private slots:
     void statustextChunked();
     void vfrHudAndPosition();
     void garbageDoesNotCrash();
+    void sysidFilterAutoLock();
+    void sysidFilterExplicit();
+    void tlogRoundtrip();
 };
 
 void TestParser::initTestCase()
@@ -185,6 +191,69 @@ void TestParser::garbageDoesNotCrash()
     QCOMPARE(hb.count(), 1);
     QCOMPARE(qvariant_cast<HeartbeatInfo>(hb.at(0).at(0)).modeName,
              QStringLiteral("RTL"));
+}
+
+void TestParser::sysidFilterAutoLock()
+{
+    MavlinkParser parser;
+    QSignalSpy hb(&parser, &MavlinkParser::heartbeatReceived);
+    QSignalSpy locked(&parser, &MavlinkParser::targetLocked);
+
+    // Первый валидный борт (sysid 1) захватывается автоматически…
+    parser.feed(heartbeatFrame(5, false, 1));
+    QCOMPARE(locked.count(), 1);
+    QCOMPARE(locked.at(0).at(0).toUInt(), quint32(1));
+    QCOMPARE(hb.count(), 1);
+
+    // …сообщения чужой системы (sysid 2) после захвата игнорируются.
+    parser.feed(heartbeatFrame(6, true, 2));
+    QCOMPARE(hb.count(), 1);
+    QCOMPARE(parser.targetSysid(), quint8(1));
+}
+
+void TestParser::sysidFilterExplicit()
+{
+    MavlinkParser parser;
+    parser.setTargetSysid(7);
+    QSignalSpy hb(&parser, &MavlinkParser::heartbeatReceived);
+
+    parser.feed(heartbeatFrame(5, false, 1)); // чужой
+    parser.feed(heartbeatFrame(5, false, 7)); // наш
+    QCOMPARE(hb.count(), 1);
+    QCOMPARE(qvariant_cast<HeartbeatInfo>(hb.at(0).at(0)).sysid, quint8(7));
+}
+
+void TestParser::tlogRoundtrip()
+{
+    QTemporaryDir dir;
+    TlogWriter *w = TlogWriter::create(dir.path(), nullptr);
+    QVERIFY(w != nullptr);
+    const QString path = w->filePath();
+
+    // Пишем через сигнал rawFrame — как это делает Application.
+    MavlinkParser recorder;
+    QObject::connect(&recorder, &MavlinkParser::rawFrame,
+                     w, &TlogWriter::write);
+    recorder.feed(heartbeatFrame(5, true));
+    recorder.feed(sysStatusFrame(80, 12000));
+    QCOMPARE(w->framesWritten(), quint64(2));
+    delete w; // закрывает файл
+
+    // Читаем обратно и прогоняем весь буфер через новый парсер: кадры
+    // самосинхронизируются, случайные байты меток времени отбрасываются.
+    QFile f(path);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QByteArray all = f.readAll();
+    QVERIFY(all.size() > 20);
+
+    MavlinkParser player;
+    QSignalSpy hb(&player, &MavlinkParser::heartbeatReceived);
+    QSignalSpy batt(&player, &MavlinkParser::batteryReceived);
+    player.feed(all);
+    QCOMPARE(hb.count(), 1);
+    QCOMPARE(batt.count(), 1);
+    QCOMPARE(qvariant_cast<HeartbeatInfo>(hb.at(0).at(0)).customMode, quint32(5));
+    QCOMPARE(qvariant_cast<BatteryInfo>(batt.at(0).at(0)).remainingPercent, 80);
 }
 
 QTEST_MAIN(TestParser)

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=mav-voice-gcs
+GenericName=UAV voice ground station
+Comment=MAVLink telemetry with Russian voice announcements
+Exec=gcs-tts
+Icon=mav-voice-gcs
+Categories=Utility;Science;
+Terminal=false
+StartupNotify=true

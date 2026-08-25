@@ -1,5 +1,7 @@
 build/
 build-*/
+logs/
+*.tlog
 *.user
 *.stash
 .idea/

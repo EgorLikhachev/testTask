@@ -10,11 +10,17 @@ struct AppConfig {
     quint16 udpPort = 14550;
     quint8 sysid = 255;
     quint8 compid = 190;
+    // 0 — авто-захват первого валидного борта; 1..255 — слушать только его.
+    quint8 vehicleSysid = 0;
 
     // [battery]
     int batteryWarnPercent = 25;
     int batteryCriticalPercent = 15;
     int batteryRecoverMarginPercent = 5;
+
+    // [link]
+    // Нет сообщений дольше loss_sec -> потеря связи (и фраза).
+    int linkLossSec = 4;
 
     // [antispam]
     int antispamDefaultSec = 8;
@@ -23,6 +29,7 @@ struct AppConfig {
     int antispamBatterySec = 30;
     int antispamStatustextSec = 15;
     int antispamStatusHotkeySec = 2;
+    int antispamLinkSec = 10;
 
     // [tts]
     bool ttsEnabled = true;
@@ -30,6 +37,12 @@ struct AppConfig {
     QString ttsVoice = QStringLiteral("ru");
     int ttsSpeed = 150;
     int ttsQueueLimit = 16;
+    // В режиме GCS_TTS_WAV_DIR хранить не более N последних WAV-файлов.
+    int ttsWavKeep = 64;
+
+    // [log]
+    bool logEnabled = true;
+    QString logDir = QStringLiteral("logs");
 
     // [hotkey]
     QString statusHotkey = QStringLiteral("F2");

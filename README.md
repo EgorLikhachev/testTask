@@ -1,5 +1,9 @@
 # mav-voice-gcs
 
+[![CI](https://github.com/EgorLikhachev/testTask/actions/workflows/ci.yml/badge.svg)](https://github.com/EgorLikhachev/testTask/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release](https://img.shields.io/badge/release-v0.2.0-blue.svg)](CHANGELOG.md)
+
 Приёмник MAVLink-телеметрии с голосовым сопровождением ключевых событий —
 компактный аналог наземной станции (в духе QGroundControl / Mission Planner),
 заточенный под озвучку.
@@ -66,11 +70,18 @@ UdpTransport  ->   MavlinkParser      ->   VehicleState /        ->  Announcer -
 - падение заряда ниже порогов warning / critical (SYS_STATUS / BATTERY_STATUS),
   с гистерезисом, чтобы предупреждающий порог не «мигал» на границе;
 - входящие STATUSTEXT уровня WARNING и тяжелее — дословно;
+- установление / потеря / восстановление связи с бортом (`[link]`);
 - статус по горячей клавише (по умолчанию F2): высота, скорость, заряд.
+
+Дополнительно: фильтр по sysid борта (`vehicle_sysid`, авто-захват первого
+валидного), дедупликация фраз в очереди TTS, запись телеметрии сессии
+в `.tlog`, английский интерфейс по локали (`translations/`).
 
 Антиспам: каждое событие озвучивается не чаще раза в N секунд; интервалы —
 в `config/gcs-tts.ini`. Для STATUSTEXT ключ антиспама строится по тексту
-сообщения, разные сообщения друг друга не блокируют.
+сообщения, разные сообщения друг друга не блокируют; потеря и восстановление
+связи имеют раздельные ключи. Таблица антиспама ограничена (512 ключей) —
+память не растёт на длинных сессиях.
 
 ## Сборка (Ubuntu 22.04/24.04, в т.ч. WSL2)
 
@@ -131,19 +142,37 @@ Tools/environment_install/install-prereqs-ubuntu.sh -y
 Проверка TTS без аудио (WSL): `./scripts/smoke_tts.sh` или запуск приложения
 с `GCS_TTS_WAV_DIR=/tmp/gcs-wav` — фразы пишутся в WAV-файлы.
 
-## Интеграционная проверка (автоматическая)
+## Интеграционные проверки
 
-`scripts/integration.sh` поднимает всё окружение целиком: приложение
-(headless, озвучка в WAV), SITL `arducopter` и python-мост
-`scripts/sitl_bridge.py` (TCP 5760 ↔ UDP 14550), который по расписанию
-выполняет сценарий и автоматически проверяет в логе приложения фразы для
-всех пунктов ТЗ: смена режимов, arm/disarm, пороги батареи, STATUSTEXT,
-антиспам, работоспособность очереди TTS. Последний прогон: 11/11 PASS.
+Два уровня:
 
-Оговорка: процент заряда (SYS_STATUS.battery_remaining) в сценарии
+1. **Синтетический (без ArduPilot, ~40 с)** — `scripts/synthetic_test.sh`.
+   Python-драйвер генерирует MAVLink-кадры (heartbeat, SYS_STATUS,
+   STATUSTEXT) и проверяет фразы в логе приложения: режимы, arm/disarm,
+   пороги батареи, дословный STATUSTEXT, потеря/восстановление связи,
+   антиспам, дошла ли очередь до синтеза (WAV). Работает в CI.
+2. **Полный с SITL** — `scripts/integration.sh`: приложение + arducopter +
+   мост-драйвер, 11 проверок по всем пунктам ТЗ.
+
+Последний прогон обоих: все проверки PASS.
+
+Оговорка: процент заряда (SYS_STATUS.battery_remaining) в полном сценарии
 инжектируется мостом синтетически — SITL с дефолтным `BATT_MONITOR=4`
 не отдаёт процент; задача проверки — цепочка приложения, а не симулятор
 батареи ArduPilot.
+
+## Готовые сборки (AppImage)
+
+CI собирает самодостаточный AppImage (задача `appimage`, ubuntu-22.04):
+артефакт каждого запуска и вложение к релизам `v*`. На целевой машине нужен
+только `espeak-ng`:
+
+```bash
+sudo apt install -y espeak-ng libxcb-xinerama0
+./mav-voice-gcs-x86_64.AppImage
+```
+
+Локальная сборка AppImage: `packaging/make_appimage.sh <путь-Qt> <каталог-сборки>`.
 
 ## Грабли, на которые наступили (WSL2)
 
@@ -165,8 +194,11 @@ Tools/environment_install/install-prereqs-ubuntu.sh -y
 ## Конфигурация
 
 `config/gcs-tts.ini`; все ключи опциональны. Основные секции: `[udp]`
-(порт/адрес), `[battery]` (пороги и гистерезис), `[antispam]` (интервалы),
-`[tts]` (программа, голос, скорость, размер очереди), `[hotkey]` (клавиша).
+(порт/адрес, `vehicle_sysid` — какой борт слушать), `[battery]` (пороги и
+гистерезис), `[link]` (окно потери связи), `[antispam]` (интервалы),
+`[tts]` (программа, голос, скорость, размер очереди, `wav_keep`),
+`[log]` (запись `.tlog`), `[hotkey]` (клавиша). Формат tlog: перед каждым
+MAVLink-кадром 8 байт LE — микросекунды с Unix-эпохи.
 
 ## Тесты
 
@@ -174,23 +206,30 @@ Tools/environment_install/install-prereqs-ubuntu.sh -y
 ctest --test-dir build --output-on-failure   # или ~/build/mav-voice-gcs в WSL
 ```
 
-`tst_parser` — кадры с мусором и разрывами, склейка чанков STATUSTEXT;
-`tst_domain` — детектор событий (гистерезис батареи, arm-фронты), антиспам,
-формулировки фраз.
+`tst_parser` — кадры с мусором и разрывами, склейка чанков STATUSTEXT,
+фильтр sysid, tlog-roundtrip; `tst_domain` — детектор событий (гистерезис
+батареи, arm-фронты), антиспам (включая потолок таблицы), состояния
+LinkMonitor, формулировки фраз; `tst_tts` — дедупликация и переполнение
+очереди, мьют. CI прогоняет всё это плюс синтетический интеграционный тест.
 
 ## Состав репозитория
 
 ```
-src/config      AppConfig: ini → параметры (порт, пороги, антиспам, TTS)
+src/config      AppConfig: ini → параметры (порт, пороги, антиспам, TTS, лог)
 src/transport   UdpTransport: QUdpSocket, только байты
-src/mavlink     MavlinkParser (c_library_v2), CopterModes, MavlinkCommands
-src/domain      VehicleState, EventDetector, AntiSpamFilter
+src/mavlink     MavlinkParser (c_library_v2, фильтр sysid), CopterModes, MavlinkCommands
+src/domain      VehicleState, EventDetector, AntiSpamFilter, LinkMonitor
 src/announce    Announcer: события → русские фразы + антиспам
-src/tts         ITtsBackend, EspeakBackend (QProcess), TtsQueue (QThread)
+src/telemetry   TlogWriter: запись сессии в .tlog
+src/tts         ITtsBackend, EspeakBackend (QProcess), TtsQueue (QThread, дедуп)
 src/ui          MainWindow: телеметрия, «Статус (F2)», мьют, лог
 src/app         Application: связка слоёв
-tests/          tst_parser, tst_domain
-scripts/        setup_wsl.sh, build.sh, sitl.sh, integration.sh, sitl_bridge.py
+tests/          tst_parser, tst_domain, tst_tts
+translations/   mav-voice-gcs_en.ts (+ .qm при сборке)
+packaging/      desktop-файл, иконка, make_appimage.sh
+scripts/        setup_wsl.sh, build.sh, sitl.sh, synthetic_test.sh,
+                integration.sh, sitl_bridge.py, smoke_tts.sh
 extern/         c_library_v2 (git-сабмодуль)
 config/         gcs-tts.ini (рабочий), gcs-tts-integration.ini (тестовый)
+docs/           MANUAL_TESTING.md — методика ручных испытаний
 ```

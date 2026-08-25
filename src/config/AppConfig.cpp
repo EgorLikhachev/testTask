@@ -26,6 +26,7 @@ AppConfig AppConfig::load(const QString &iniPath)
     cfg.udpPort = (port > 0 && port <= 65535) ? quint16(port) : cfg.udpPort;
     cfg.sysid = quint8(clamped(s, "udp/sysid", cfg.sysid, 1, 255));
     cfg.compid = quint8(clamped(s, "udp/compid", cfg.compid, 1, 255));
+    cfg.vehicleSysid = quint8(clamped(s, "udp/vehicle_sysid", cfg.vehicleSysid, 0, 255));
 
     cfg.batteryWarnPercent = clamped(s, "battery/warn_percent", cfg.batteryWarnPercent, 2, 99);
     cfg.batteryCriticalPercent =
@@ -33,18 +34,25 @@ AppConfig AppConfig::load(const QString &iniPath)
     cfg.batteryRecoverMarginPercent =
         clamped(s, "battery/recover_margin_percent", cfg.batteryRecoverMarginPercent, 0, 50);
 
+    cfg.linkLossSec = clamped(s, "link/loss_sec", cfg.linkLossSec, 1, 3600);
+
     cfg.antispamDefaultSec = clamped(s, "antispam/default_sec", cfg.antispamDefaultSec, 0, 3600);
     cfg.antispamModeSec = clamped(s, "antispam/mode_change_sec", cfg.antispamModeSec, 0, 3600);
     cfg.antispamArmSec = clamped(s, "antispam/arm_sec", cfg.antispamArmSec, 0, 3600);
     cfg.antispamBatterySec = clamped(s, "antispam/battery_sec", cfg.antispamBatterySec, 0, 3600);
     cfg.antispamStatustextSec = clamped(s, "antispam/statustext_sec", cfg.antispamStatustextSec, 0, 3600);
     cfg.antispamStatusHotkeySec = clamped(s, "antispam/status_hotkey_sec", cfg.antispamStatusHotkeySec, 0, 3600);
+    cfg.antispamLinkSec = clamped(s, "antispam/link_sec", cfg.antispamLinkSec, 0, 3600);
 
     cfg.ttsEnabled = s.value("tts/enabled", cfg.ttsEnabled).toBool();
     cfg.ttsProgram = s.value("tts/program", cfg.ttsProgram).toString();
     cfg.ttsVoice = s.value("tts/voice", cfg.ttsVoice).toString();
     cfg.ttsSpeed = clamped(s, "tts/speed", cfg.ttsSpeed, 80, 400);
     cfg.ttsQueueLimit = clamped(s, "tts/queue_limit", cfg.ttsQueueLimit, 2, 256);
+    cfg.ttsWavKeep = clamped(s, "tts/wav_keep", cfg.ttsWavKeep, 1, 10000);
+
+    cfg.logEnabled = s.value("log/enabled", cfg.logEnabled).toBool();
+    cfg.logDir = s.value("log/dir", cfg.logDir).toString();
 
     cfg.statusHotkey = s.value("hotkey/status_key", cfg.statusHotkey).toString();
 

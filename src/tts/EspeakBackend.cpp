@@ -2,6 +2,8 @@
 
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
+#include <QQueue>
 #include <QStandardPaths>
 #include <QTimer>
 
@@ -78,6 +80,13 @@ void EspeakBackend::speak(const QString &text)
                 .arg(QDateTime::currentDateTime().toString(QStringLiteral("hhmmss")))
                 .arg(++m_waveCounter));
         args << QStringLiteral("-w") << file;
+
+        // Держим только последние m_waveKeep файлов — каталог не растёт.
+        if (m_waveKeep > 0) {
+            m_waveFiles.enqueue(file);
+            while (m_waveFiles.size() > m_waveKeep)
+                QFile::remove(m_waveFiles.dequeue());
+        }
     }
     args << QStringLiteral("-v") << m_voice
          << QStringLiteral("-s") << QString::number(m_speed)

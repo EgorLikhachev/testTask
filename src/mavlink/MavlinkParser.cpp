@@ -60,6 +60,31 @@ void MavlinkParser::feed(const QByteArray &bytes)
         if (!mavlink_parse_char(MAVLINK_COMM_0, data[i], &d->msg, &d->status))
             continue;
 
+        // Фильтр борта: после захвата принимаем только его систему.
+        if (m_targetSysid != 0 && d->msg.sysid != m_targetSysid)
+            continue;
+
+        // Авто-захват: первый heartbeat валидного борта фиксирует цель.
+        if (m_targetSysid == 0 && d->msg.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
+            mavlink_heartbeat_t probe;
+            mavlink_msg_heartbeat_decode(&d->msg, &probe);
+            if (probe.autopilot != MAV_AUTOPILOT_INVALID
+                && probe.type != MAV_TYPE_GCS) {
+                m_targetSysid = d->msg.sysid;
+                qInfo("[parser] борт зафиксирован: sysid %u", unsigned(m_targetSysid));
+                emit targetLocked(m_targetSysid);
+            }
+        }
+
+        // Полный кадр — наружу (tlog-запись). to_send_buffer корректен
+        // для неподписанных кадров; подпись v2, если была, не сохраняется.
+        {
+            uint8_t buf[MAVLINK_MAX_PACKET_LEN];
+            const int len = mavlink_msg_to_send_buffer(buf, &d->msg);
+            if (len > 0)
+                emit rawFrame(QByteArray(reinterpret_cast<const char *>(buf), len));
+        }
+
         m_totalMessages++;
 
         switch (d->msg.msgid) {

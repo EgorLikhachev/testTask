@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    name: Сборка, ctest, синтетический тест
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Qt 6.5.3
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          cache: true
+
+      - name: Системные зависимости
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build espeak-ng \
+            libgl-dev libopengl-dev libegl-dev libglx-dev libxcb-xinerama0
+          pip install pymavlink
+
+      - name: Сборка + юнит-тесты
+        run: ./scripts/build.sh
+
+      - name: Синтетический интеграционный тест (без SITL)
+        run: ./scripts/synthetic_test.sh
+
+  appimage:
+    name: AppImage (ubuntu-22.04)
+    runs-on: ubuntu-22.04
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Qt 6.5.3
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          cache: true
+
+      - name: Системные зависимости
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgl-dev libopengl-dev \
+            libegl-dev libglx-dev libxcb-xinerama0 curl p7zip-full
+
+      - name: Сборка (релизная)
+        run: ./scripts/build.sh
+
+      - name: AppImage
+        run: packaging/make_appimage.sh "$HOME/Qt/6.5.3/gcc_64" build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mav-voice-gcs-AppImage
+          path: mav-voice-gcs-*.AppImage
+
+      - name: Релиз по тегу
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: mav-voice-gcs-*.AppImage

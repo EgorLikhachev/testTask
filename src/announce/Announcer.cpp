@@ -170,6 +170,29 @@ void Announcer::onStatusWarning(StatusTextInfo info)
                     .arg(info.text));
 }
 
+void Announcer::onLinkEstablished()
+{
+    tryAnnounce(QStringLiteral("link_up"), m_cfg.antispamLinkSec,
+                QStringLiteral("Связь с бортом установлена"),
+                tts::PriorityNormal, QStringLiteral("связь установлена"));
+}
+
+void Announcer::onLinkLost()
+{
+    // Ключи link_down/link_up раздельные: потеря не должна антиспамить
+    // скорое восстановление (и наоборот).
+    tryAnnounce(QStringLiteral("link_down"), m_cfg.antispamLinkSec,
+                QStringLiteral("Потеря связи с бортом"),
+                tts::PriorityCritical, QStringLiteral("потеря связи"));
+}
+
+void Announcer::onLinkRegained()
+{
+    tryAnnounce(QStringLiteral("link_up"), m_cfg.antispamLinkSec,
+                QStringLiteral("Связь с бортом восстановлена"),
+                tts::PriorityCritical, QStringLiteral("связь восстановлена"));
+}
+
 void Announcer::onStatusRequested()
 {
     if (!m_state) {

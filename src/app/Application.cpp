@@ -54,6 +54,18 @@ bool Application::start()
     if (!m_transport.bind(m_cfg.udpPort))
         return false;
 
+    // Какой борт слушаем: явный sysid или авто-захват первого валидного.
+    if (m_cfg.vehicleSysid != 0)
+        m_parser.setTargetSysid(m_cfg.vehicleSysid);
+
+    // Запись телеметрии сессии (.tlog), если включена.
+    if (m_cfg.logEnabled) {
+        m_tlog = TlogWriter::create(m_cfg.logDir, this);
+        if (m_tlog)
+            connect(&m_parser, &MavlinkParser::rawFrame,
+                    m_tlog, &TlogWriter::write);
+    }
+
     // transport -> parser
     connect(&m_transport, &UdpTransport::datagramReceived,
             this, [this](const QByteArray &bytes) { m_parser.feed(bytes); });
@@ -87,8 +99,10 @@ bool Application::start()
     m_ttsQueue = new TtsQueue(m_cfg.ttsQueueLimit);
     m_backend = new EspeakBackend(m_cfg.ttsProgram, m_cfg.ttsVoice, m_cfg.ttsSpeed);
     if (const QString waveDir =
-            qEnvironmentVariable("GCS_TTS_WAV_DIR"); !waveDir.isEmpty())
+            qEnvironmentVariable("GCS_TTS_WAV_DIR"); !waveDir.isEmpty()) {
         m_backend->setWaveDir(waveDir);
+        m_backend->setWaveKeep(m_cfg.ttsWavKeep);
+    }
     m_ttsQueue->setBackend(m_backend);
     m_ttsQueue->moveToThread(m_ttsThread);
     m_backend->moveToThread(m_ttsThread);
@@ -109,6 +123,20 @@ bool Application::start()
             &m_announcer, &Announcer::onBatteryLevel);
     connect(&m_detector, &EventDetector::statusWarning,
             &m_announcer, &Announcer::onStatusWarning);
+
+    // Наблюдатель канала: озвучка установления/потери/восстановления связи.
+    m_linkMonitor = new LinkMonitor(&m_state, m_cfg.linkLossSec * 1000, 1000, this);
+    connect(m_linkMonitor, &LinkMonitor::linkEstablished,
+            &m_announcer, &Announcer::onLinkEstablished);
+    connect(m_linkMonitor, &LinkMonitor::linkLost,
+            &m_announcer, &Announcer::onLinkLost);
+    connect(m_linkMonitor, &LinkMonitor::linkRegained,
+            &m_announcer, &Announcer::onLinkRegained);
+    // После потери связи запрос стримов придётся повторять — борт мог
+    // перезапуститься и потерять наши интервалы.
+    connect(m_linkMonitor, &LinkMonitor::linkLost, this, [this]() {
+        m_streamsRequested = false;
+    });
 
     // озвучка -> очередь TTS (межпоточное соединение — автоматически queued)
     connect(&m_announcer, &Announcer::announce,

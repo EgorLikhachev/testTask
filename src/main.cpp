@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QFile>
+#include <QTranslator>
 
 #include "app/Application.h"
 #include "config/AppConfig.h"
@@ -12,7 +13,15 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("mav-voice-gcs"));
     app.setOrganizationName(QStringLiteral("mav-voice-gcs"));
-    app.setApplicationVersion(QStringLiteral("0.1.0"));
+    app.setApplicationVersion(QStringLiteral("0.2.0"));
+
+    // Английская локаль получает перевод (исходный язык — русский).
+    QTranslator translator;
+    const QString qmDir =
+        QCoreApplication::applicationDirPath() + QStringLiteral("/translations");
+    if (translator.load(QLocale::system(), QStringLiteral("mav-voice-gcs"),
+                        QStringLiteral("_"), qmDir))
+        app.installTranslator(&translator);
 
     qSetMessagePattern(QStringLiteral("[%{time hh:mm:ss.zzz} %{type}] %{message}"));
 
@@ -43,6 +52,9 @@ int main(int argc, char *argv[])
                 + QStringLiteral("/../config/gcs-tts.ini"),
             QCoreApplication::applicationDirPath()
                 + QStringLiteral("/../../config/gcs-tts.ini"),
+            // AppImage: usr/share/mav-voice-gcs/gcs-tts.ini
+            QCoreApplication::applicationDirPath()
+                + QStringLiteral("/../share/mav-voice-gcs/gcs-tts.ini"),
         };
         for (const QString &c : candidates) {
             if (QFile::exists(c)) {

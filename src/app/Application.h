@@ -6,8 +6,10 @@
 #include "announce/Announcer.h"
 #include "config/AppConfig.h"
 #include "domain/EventDetector.h"
+#include "domain/LinkMonitor.h"
 #include "domain/VehicleState.h"
 #include "mavlink/MavlinkParser.h"
+#include "telemetry/TlogWriter.h"
 #include "transport/UdpTransport.h"
 #include "tts/EspeakBackend.h"
 #include "tts/TtsQueue.h"
@@ -46,6 +48,8 @@ private:
     VehicleState m_state;
     EventDetector m_detector;
     Announcer m_announcer;
+    LinkMonitor *m_linkMonitor = nullptr;
+    TlogWriter *m_tlog = nullptr;
 
     QThread *m_ttsThread = nullptr;
     TtsQueue *m_ttsQueue = nullptr;

@@ -34,6 +34,9 @@ public slots:
     void onBatteryLevel(int level);
     void onStatusWarning(gcs::StatusTextInfo info);
     void onStatusRequested();
+    void onLinkEstablished();
+    void onLinkLost();
+    void onLinkRegained();
 
 private:
     bool tryAnnounce(const QString &antispamKey, int minIntervalSec,

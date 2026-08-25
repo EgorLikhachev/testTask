@@ -44,6 +44,7 @@ private:
     QQueue<Item> m_queue;
     int m_limit = 16;
     bool m_busy = false;
+    QString m_speaking; // фраза, произносимая прямо сейчас (для дедупликации)
     bool m_muted = false;
     ITtsBackend *m_backend = nullptr;
 };

@@ -21,6 +21,11 @@ public:
     // Вариант с инъекцией времени для тестов.
     bool allowMs(const QString &key, qint64 minIntervalMs, qint64 nowMs)
     {
+        // Потолок таблицы: поток уникальных STATUSTEXT не должен растить
+        // память бесконечно; очистка целиком допустима — старые ключи
+        // всё равно уже не влияют на решения.
+        if (m_lastAllowedMs.size() >= kMaxEntries)
+            m_lastAllowedMs.clear();
         const auto it = m_lastAllowedMs.constFind(key);
         if (it != m_lastAllowedMs.constEnd() && nowMs - it.value() < minIntervalMs)
             return false;
@@ -29,6 +34,8 @@ public:
     }
 
     void reset() { m_lastAllowedMs.clear(); }
+
+    static constexpr int kMaxEntries = 512;
 
 private:
     QHash<QString, qint64> m_lastAllowedMs;
