@@ -68,6 +68,7 @@ jobs:
       - name: AppImage
         run: |
           set -x
+          set -o pipefail
           if ! packaging/make_appimage.sh "${{ github.workspace }}/Qt/6.5.3/gcc_64" build 2>&1 | tee make_appimage.log; then
             echo "::error::make_appimage failed: $(tail -n 6 make_appimage.log | tr '\n' ' ')"
             exit 1
