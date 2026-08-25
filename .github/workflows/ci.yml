@@ -30,7 +30,7 @@ jobs:
       - name: Системные зависимости
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build espeak-ng \
+          sudo apt-get install -y ninja-build espeak-ng libx11-dev \
             libgl-dev libopengl-dev libegl-dev libglx-dev libxcb-xinerama0
           pip install pymavlink
 
@@ -61,7 +61,7 @@ jobs:
       - name: Системные зависимости
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build libgl-dev libopengl-dev \
+          sudo apt-get install -y ninja-build libx11-dev libgl-dev libopengl-dev \
             libegl-dev libglx-dev libxcb-xinerama0 curl p7zip-full
 
       - name: Сборка (релизная)

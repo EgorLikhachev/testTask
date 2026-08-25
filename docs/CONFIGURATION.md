@@ -62,11 +62,16 @@ Set an interval to `0` to disable suppression for that event type.
 | Key | Default | Description |
 |---|---|---|
 | `enabled` | `true` | master switch; `false` logs phrases without speaking |
-| `program` | `espeak-ng` | synthesizer executable looked up in `PATH` |
+| `backend` | `espeak` | `espeak` or `piper` (neural, see `scripts/setup_piper.sh`) |
+| `program` | `espeak-ng` | espeak backend: synthesizer executable in `PATH` |
 | `voice` | `ru` | espeak-ng voice |
-| `speed` | `150` | words per minute (80–400) |
+| `speed` | `150` | espeak-ng words per minute (80–400) |
 | `queue_limit` | `16` | max queued phrases; overflow drops the oldest non-critical first |
 | `wav_keep` | `64` | in `GCS_TTS_WAV_DIR` mode keep only the last N WAV files (`1`–`10000`) |
+| `piper_bin` | `piper` | piper backend: executable |
+| `piper_model` | — | piper backend: path to the `.onnx` voice model (required) |
+| `piper_play` | `paplay` | piper backend: WAV playback command, may include arguments (`pw-play -q`) |
+| `piper_length_scale` | `1.0` | piper backend: speech rate, `0.5` faster … `2.0` slower (clamped) |
 
 ## `[log]` — session recording
 
@@ -84,6 +89,13 @@ so the file can be replayed through any MAVLink parser.
 | Key | Default | Description |
 |---|---|---|
 | `status_key` | `F2` | key sequence accepted by `QKeySequence` (`F2`, `Ctrl+S`, …); works while the window is focused |
+| `global` | `true` | also grab the key globally via X11/XWayland (`XGrabKey`); without X11 or if the key is already grabbed, falls back to the window-only hotkey with a log message |
+
+## `[ui]` — window and tray
+
+| Key | Default | Description |
+|---|---|---|
+| `hide_on_close` | `true` | closing the window hides it to the system tray (when a tray is available); quit via the tray menu. Without a tray, closing exits as usual |
 
 ## Environment variables
 

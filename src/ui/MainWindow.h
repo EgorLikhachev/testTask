@@ -15,11 +15,15 @@ class VehicleState;
 
 // Минимальное окно станции: текущая телеметрия, кнопка статуса,
 // мьют и лог событий/озвученного. Хоткей статуса — из конфига (по умолчанию F2).
+// При наличии трея закрытие окна сворачивает в трей (см. setCloseToTray).
 class MainWindow : public QWidget
 {
     Q_OBJECT
 public:
     MainWindow(VehicleState *state, const AppConfig &cfg, QWidget *parent = nullptr);
+
+    // true, если закрытие должно прятать окно, а не завершать приложение.
+    void setCloseToTray(bool enabled) { m_closeToTray = enabled; }
 
 signals:
     void statusRequested();
@@ -32,6 +36,9 @@ public slots:
 
 private slots:
     void refresh();
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 
 private:
     VehicleState *m_state = nullptr;
@@ -52,6 +59,7 @@ private:
     quint64 m_prevMessages = 0;
     double m_msgRate = 0.0;
     bool m_muted = false;
+    bool m_closeToTray = false;
 };
 
 } // namespace gcs

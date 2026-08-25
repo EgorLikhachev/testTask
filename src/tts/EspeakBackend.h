@@ -32,7 +32,7 @@ public:
 
 public slots:
     // Вызывается уже в рабочем потоке (после moveToThread).
-    void initInWorkerThread();
+    void initInWorkerThread() override;
 
 private:
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);

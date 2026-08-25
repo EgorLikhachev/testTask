@@ -4,6 +4,7 @@ project(mav-voice-gcs VERSION 0.2.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
@@ -41,6 +42,8 @@ add_library(gcs_core STATIC
     src/tts/ITtsBackend.h
     src/tts/EspeakBackend.h
     src/tts/EspeakBackend.cpp
+    src/tts/PiperBackend.h
+    src/tts/PiperBackend.cpp
     src/tts/TtsQueue.h
     src/tts/TtsQueue.cpp
     src/app/Application.h
@@ -62,8 +65,24 @@ add_executable(gcs-tts
     src/main.cpp
     src/ui/MainWindow.h
     src/ui/MainWindow.cpp
+    src/ui/SystemTray.h
+    src/ui/SystemTray.cpp
+    src/ui/X11GlobalShortcut.h
+    src/ui/X11GlobalShortcut.cpp
+    src/ui/resources.qrc
 )
 target_link_libraries(gcs-tts PRIVATE gcs_core Qt6::Widgets)
+
+# Глобальный хоткей — X11 (XWayland поддерживается). Без X11 сборка
+# продолжается, хоткей работает только при фокусе окна.
+find_package(X11 QUIET)
+if(TARGET X11::X11)
+    target_link_libraries(gcs-tts PRIVATE X11::X11)
+    target_compile_definitions(gcs-tts PRIVATE HAVE_X11=1)
+    message(STATUS "X11 найден: глобальный хоткей включён")
+else()
+    message(WARNING "X11 не найден: глобальный хоткей недоступен (только оконный)")
+endif()
 
 # Локализация: lrelease по .ts-файлам; .qm кладутся рядом с бинарником
 # в <build>/translations и подхватываются main.cpp по локали.

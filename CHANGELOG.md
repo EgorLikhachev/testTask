@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Neural speech backend **piper** (rhasspy/piper, Russian voice
+  `ru_RU-irina-medium`): `[tts] backend = piper` plus `piper_*` keys;
+  installer `scripts/setup_piper.sh` (pinned binary + voice model).
+  espeak-ng remains the default; both backends implement `ITtsBackend`
+  and share the same queue, WAV-debug mode and anti-spam.
+- System tray icon: show/hide window, status speech, mute, quit;
+  closing the window hides it to the tray (`[ui] hide_on_close`).
+- Global status hotkey via X11/XWayland (`XGrabKey`, works when the
+  window is not focused): `[hotkey] global`. Built only when X11
+  headers are available; graceful fallback to the window hotkey.
+- Application and window icons (embedded resource).
+
 ## [0.2.0] — 2026-08-25
 
 ### Added

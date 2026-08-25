@@ -7,6 +7,8 @@
 #include "config/AppConfig.h"
 #include "domain/Telemetry.h"
 #include "ui/MainWindow.h"
+#include "ui/SystemTray.h"
+#include "ui/X11GlobalShortcut.h"
 
 int main(int argc, char *argv[])
 {
@@ -89,6 +91,29 @@ int main(int argc, char *argv[])
     QObject::connect(window, &gcs::MainWindow::muteToggled,
                      gcsApp.ttsQueue(), &gcs::TtsQueue::setMuted);
     window->show();
+
+    // Глобальный хоткей (X11/XWayland): статус даже когда окно не в фокусе.
+    if (cfg.hotkeyGlobal) {
+        auto *global = gcs::X11GlobalShortcut::create(cfg.statusHotkey, &gcsApp);
+        if (global)
+            QObject::connect(global, &gcs::X11GlobalShortcut::activated,
+                             gcsApp.announcer(),
+                             &gcs::Announcer::onStatusRequested);
+    }
+
+    // Трей: показать/скрыть, статус, мьют, выход; крест окна прячет в трей.
+    if (auto *tray = gcs::SystemTray::create(window, &app)) {
+        window->setCloseToTray(cfg.uiHideOnClose);
+        QObject::connect(tray, &gcs::SystemTray::statusRequested,
+                         gcsApp.announcer(), &gcs::Announcer::onStatusRequested);
+        QObject::connect(tray, &gcs::SystemTray::quitRequested,
+                         &app, &QCoreApplication::quit);
+        QObject::connect(tray, &gcs::SystemTray::muteToggled,
+                         gcsApp.ttsQueue(), &gcs::TtsQueue::setMuted);
+        // Кнопка окна держит чекбокс трея в согласии (без эха).
+        QObject::connect(window, &gcs::MainWindow::muteToggled,
+                         tray, &gcs::SystemTray::setMuted);
+    }
 
     return app.exec();
 }

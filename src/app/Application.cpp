@@ -97,18 +97,30 @@ bool Application::start()
     // TTS: очередь в отдельном потоке, чтобы говорение не блокировало приём.
     m_ttsThread = new QThread(this);
     m_ttsQueue = new TtsQueue(m_cfg.ttsQueueLimit);
-    m_backend = new EspeakBackend(m_cfg.ttsProgram, m_cfg.ttsVoice, m_cfg.ttsSpeed);
-    if (const QString waveDir =
-            qEnvironmentVariable("GCS_TTS_WAV_DIR"); !waveDir.isEmpty()) {
-        m_backend->setWaveDir(waveDir);
-        m_backend->setWaveKeep(m_cfg.ttsWavKeep);
+    const QString waveDir = qEnvironmentVariable("GCS_TTS_WAV_DIR");
+    if (m_cfg.ttsBackend == QStringLiteral("piper")) {
+        auto *piper = new PiperBackend(m_cfg.piperBin, m_cfg.piperModel,
+                                       m_cfg.piperPlayCmd, m_cfg.piperLengthScale);
+        if (!waveDir.isEmpty()) {
+            piper->setWaveDir(waveDir);
+            piper->setWaveKeep(m_cfg.ttsWavKeep);
+        }
+        m_backend = piper;
+    } else {
+        auto *espeak = new EspeakBackend(m_cfg.ttsProgram, m_cfg.ttsVoice,
+                                         m_cfg.ttsSpeed);
+        if (!waveDir.isEmpty()) {
+            espeak->setWaveDir(waveDir);
+            espeak->setWaveKeep(m_cfg.ttsWavKeep);
+        }
+        m_backend = espeak;
     }
     m_ttsQueue->setBackend(m_backend);
     m_ttsQueue->moveToThread(m_ttsThread);
     m_backend->moveToThread(m_ttsThread);
     // Создание QProcess/QTimer — уже в рабочем потоке.
     connect(m_ttsThread, &QThread::started,
-            m_backend, &EspeakBackend::initInWorkerThread);
+            m_backend, &ITtsBackend::initInWorkerThread);
     connect(m_ttsThread, &QThread::finished, m_ttsQueue, &QObject::deleteLater);
     connect(m_ttsThread, &QThread::finished, m_backend, &QObject::deleteLater);
     m_ttsThread->start();

@@ -33,6 +33,11 @@ public:
     // Асинхронно: по завершении (или ошибке) обязан испустить finished().
     virtual void speak(const QString &text) = 0;
 
+public slots:
+    // Вызывается один раз в рабочем потоке после moveToThread — здесь
+    // бэкенды создают свои QProcess/QTimer (аффинность потоков Qt).
+    virtual void initInWorkerThread() {}
+
 signals:
     void finished();
     void failed(const QString &error);

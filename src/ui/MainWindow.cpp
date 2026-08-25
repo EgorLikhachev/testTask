@@ -1,8 +1,10 @@
 #include "ui/MainWindow.h"
 
+#include <QCloseEvent>
 #include <QDateTime>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -20,6 +22,7 @@ MainWindow::MainWindow(VehicleState *state, const AppConfig &cfg, QWidget *paren
     , m_cfg(cfg)
 {
     setWindowTitle(tr("mav-voice-gcs — голосовая станция БПЛА"));
+    setWindowIcon(QIcon(QStringLiteral(":/icons/mav-voice-gcs.png")));
     setMinimumWidth(520);
 
     auto *modeVal = new QLabel(QStringLiteral("—"));
@@ -89,6 +92,17 @@ MainWindow::MainWindow(VehicleState *state, const AppConfig &cfg, QWidget *paren
     connect(m_refreshTimer, &QTimer::timeout, this, &MainWindow::refresh);
     m_refreshTimer->start();
     refresh();
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    // С треем крест окна прячет окно; выход — через меню трея.
+    if (m_closeToTray) {
+        hide();
+        event->ignore();
+        return;
+    }
+    event->accept();
 }
 
 void MainWindow::refresh()

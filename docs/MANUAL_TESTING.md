@@ -284,6 +284,24 @@ vehicle with a clean EEPROM.
 | Expected | The last change is suppressed (“подавлено антиспамом (30 с)”) because 25 s < 30 s elapsed since the last spoken mode |
 | Pass criteria | Restore the config afterwards (10) |
 
+### T-12. Tray and global hotkey
+
+| | |
+|---|---|
+| Preconditions | X11 session (or XWayland); tray available |
+| Steps | 1. Focus another application. 2. Press F2. 3. Click the tray icon. 4. Close the window with X. 5. Tray menu -> Статус, then Выход |
+| Expected | 2 — the status speech is spoken although the window is not focused (log: "глобальный перехват активен"); 3 — the window toggles; 4 — the window hides, the app keeps running (tray icon alive); 5 — status spoken, then the application exits |
+| Pass criteria | No X11 error dialogs; on Wayland-only or headless hosts the log says the global grab is unavailable and the window hotkey still works |
+
+### T-13. Neural voice (piper, optional)
+
+| | |
+|---|---|
+| Preconditions | `./scripts/setup_piper.sh` completed; `[tts] backend = piper` and `piper_model` set in the config; `paplay` installed |
+| Steps | 1. Restart the application. 2. Change the flight mode in MAVProxy |
+| Expected | The phrases sound noticeably more natural than espeak-ng; the log shows `[tts/piper]` lines; mute and WAV-debug mode behave the same as with espeak |
+| Pass criteria | Voice quality confirmed subjectively; switching `backend` back to `espeak` restores the old engine without other changes |
+
 ## 5. Sound-less mode (WAV)
 
 When the bench has no audio output, run the application with the
@@ -315,6 +333,8 @@ AND the corresponding WAV file exists.
 | T-09 | Mute | | |
 | T-10 | TTS does not block reception | | |
 | T-11 | Anti-spam config | | |
+| T-12 | Tray & global hotkey | | |
+| T-13 | Neural voice (piper) | | |
 
 Bench: OS ____, Qt ____, ArduPilot ____, date ____, tester ____.
 

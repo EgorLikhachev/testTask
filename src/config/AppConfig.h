@@ -33,12 +33,19 @@ struct AppConfig {
 
     // [tts]
     bool ttsEnabled = true;
+    // espeak | piper (см. ITtsBackend-реализации)
+    QString ttsBackend = QStringLiteral("espeak");
     QString ttsProgram = QStringLiteral("espeak-ng");
     QString ttsVoice = QStringLiteral("ru");
     int ttsSpeed = 150;
     int ttsQueueLimit = 16;
     // В режиме GCS_TTS_WAV_DIR хранить не более N последних WAV-файлов.
     int ttsWavKeep = 64;
+    // piper: путь к бинарю, ONNX-модели, команде воспроизведения и темп речи.
+    QString piperBin = QStringLiteral("piper");
+    QString piperModel;
+    QString piperPlayCmd = QStringLiteral("paplay");
+    double piperLengthScale = 1.0;
 
     // [log]
     bool logEnabled = true;
@@ -46,6 +53,13 @@ struct AppConfig {
 
     // [hotkey]
     QString statusHotkey = QStringLiteral("F2");
+    // Глобальный хоткей (X11/XWayland). При неудаче — тихий откат
+    // к хоткею окна.
+    bool hotkeyGlobal = true;
+
+    // [ui]
+    // Закрытие окна сворачивает в трей (если трей доступен), а не выходит.
+    bool uiHideOnClose = true;
 
     // Читает ini-файл; отсутствующие ключи остаются со значениями по умолчанию.
     static AppConfig load(const QString &iniPath);

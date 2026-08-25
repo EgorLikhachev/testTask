@@ -12,6 +12,8 @@
 #include "telemetry/TlogWriter.h"
 #include "transport/UdpTransport.h"
 #include "tts/EspeakBackend.h"
+#include "tts/ITtsBackend.h"
+#include "tts/PiperBackend.h"
 #include "tts/TtsQueue.h"
 
 class QThread;
@@ -53,7 +55,7 @@ private:
 
     QThread *m_ttsThread = nullptr;
     TtsQueue *m_ttsQueue = nullptr;
-    EspeakBackend *m_backend = nullptr;
+    ITtsBackend *m_backend = nullptr;
 
     QTimer m_heartbeatTimer;
     bool m_streamsRequested = false;

@@ -2,6 +2,7 @@
 
 #include "tts/EspeakBackend.h"
 #include "tts/ITtsBackend.h"
+#include "tts/PiperBackend.h"
 #include "tts/TtsQueue.h"
 
 using namespace gcs;
@@ -38,6 +39,7 @@ private slots:
     void dedupSkipsCurrentlySpeaking();
     void overflowDropsOldest();
     void muteDropsEverything();
+    void piperNotReadyFailsGracefully();
 };
 
 void TestTts::dedupSkipsIdenticalQueued()
@@ -97,6 +99,26 @@ void TestTts::muteDropsEverything()
     q.enqueue(QStringLiteral("Режим"), tts::PriorityNormal);
     QCOMPARE(q.queuedCount(), 0);
     QCOMPARE(be.spoken.count(), 0);
+}
+
+void TestTts::piperNotReadyFailsGracefully()
+{
+    // Модель не задана -> бэкенд не готов, но контракт соблюдается:
+    // speak() обязан выдать failed и finished, не уронив очередь.
+    PiperBackend piper(QStringLiteral("piper"), QString(),
+                       QStringLiteral("paplay"), 1.0);
+    QVERIFY(!piper.isReady());
+
+    TtsQueue q(16);
+    q.setBackend(&piper);
+    QSignalSpy failed(&piper, &ITtsBackend::failed);
+    QSignalSpy started(&q, &TtsQueue::phraseStarted);
+
+    q.enqueue(QStringLiteral("Проверка"), tts::PriorityNormal);
+    QTRY_COMPARE_WITH_TIMEOUT(failed.count(), 1, 2000);
+    QVERIFY(started.count() >= 1);
+    // Очередь освободилась и готова к следующей фразе.
+    QCOMPARE(q.queuedCount(), 0);
 }
 
 QTEST_MAIN(TestTts)

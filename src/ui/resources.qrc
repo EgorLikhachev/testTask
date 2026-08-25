@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="mav-voice-gcs.png">icons/mav-voice-gcs.png</file>
+    </qresource>
+</RCC>

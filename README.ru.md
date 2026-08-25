@@ -43,7 +43,7 @@ git clone --recurse-submodules https://github.com/EgorLikhachev/testTask.git
 
 Слои строго разделены по каталогам, поток данных слева направо:
 
-```
+```text
 транспорт          парсер MAVLink          доменная модель           TTS
 UdpTransport  ->   MavlinkParser      ->   VehicleState /        ->  Announcer -> TtsQueue -> EspeakBackend
 (QUdpSocket)       (c_library_v2,           EventDetector /           (антиспам,   (QThread,   (QProcess
@@ -73,7 +73,13 @@ UdpTransport  ->   MavlinkParser      ->   VehicleState /        ->  Announcer -
   с гистерезисом, чтобы предупреждающий порог не «мигал» на границе;
 - входящие STATUSTEXT уровня WARNING и тяжелее — дословно;
 - установление / потеря / восстановление связи с бортом (`[link]`);
-- статус по горячей клавише (по умолчанию F2): высота, скорость, заряд.
+- статус по горячей клавише (по умолчанию F2): высота, скорость, заряд;
+  ключ также перехватывается глобально (X11/XWayland, `[hotkey] global`).
+
+Голосовой движок: по умолчанию espeak-ng; при желании — нейросетевой piper
+(`[tts] backend = piper`, установка: `./scripts/setup_piper.sh`).
+Есть системный трей (показать/скрыть, статус, мьют, выход; крест окна
+сворачивает в трей — `[ui] hide_on_close`).
 
 Дополнительно: фильтр по sysid борта (`vehicle_sysid`, авто-захват первого
 валидного), дедупликация фраз в очереди TTS, запись телеметрии сессии
@@ -216,7 +222,7 @@ LinkMonitor, формулировки фраз; `tst_tts` — дедуплика
 
 ## Состав репозитория
 
-```
+```text
 src/config      AppConfig: ini → параметры (порт, пороги, антиспам, TTS, лог)
 src/transport   UdpTransport: QUdpSocket, только байты
 src/mavlink     MavlinkParser (c_library_v2, фильтр sysid), CopterModes, MavlinkCommands

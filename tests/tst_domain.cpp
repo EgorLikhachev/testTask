@@ -1,5 +1,8 @@
 #include <QtTest>
 
+#include <QFile>
+#include <QTemporaryDir>
+
 #include "announce/Announcer.h"
 #include "config/AppConfig.h"
 #include "domain/AntiSpamFilter.h"
@@ -49,6 +52,7 @@ private slots:
     void copterModesTable();
     void statusPhrase();
     void modePhrase();
+    void appConfigParsesNewKeys();
 };
 
 void TestDomain::initTestCase()
@@ -259,6 +263,40 @@ void TestDomain::modePhrase()
     // Повтор той же смены внутри интервала антиспама — блокируется.
     a.onFlightModeChanged(QStringLiteral("RTL"));
     QCOMPARE(spy.count(), 1);
+}
+
+void TestDomain::appConfigParsesNewKeys()
+{
+    QTemporaryDir dir;
+    const QString ini = dir.filePath(QStringLiteral("t.ini"));
+    QFile f(ini);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(R"INI(
+[udp]
+vehicle_sysid = 7
+[tts]
+backend = piper
+piper_model = /tmp/ru.onnx
+piper_length_scale = 1.2
+[hotkey]
+global = false
+[ui]
+hide_on_close = false
+)INI");
+    f.close();
+
+    const AppConfig cfg = AppConfig::load(ini);
+    QCOMPARE(cfg.vehicleSysid, quint8(7));
+    QCOMPARE(cfg.ttsBackend, QStringLiteral("piper"));
+    QCOMPARE(cfg.piperModel, QStringLiteral("/tmp/ru.onnx"));
+    QCOMPARE(cfg.piperLengthScale, 1.2);
+    QCOMPARE(cfg.hotkeyGlobal, false);
+    QCOMPARE(cfg.uiHideOnClose, false);
+
+    // Дефолты без файла-значений: бэкенд espeak, глобальный хоткей включён.
+    const AppConfig def = AppConfig::load(dir.filePath(QStringLiteral("none.ini")));
+    QCOMPARE(def.ttsBackend, QStringLiteral("espeak"));
+    QCOMPARE(def.hotkeyGlobal, true);
 }
 
 QTEST_MAIN(TestDomain)

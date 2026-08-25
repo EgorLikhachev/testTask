@@ -33,7 +33,9 @@ status speech on a hotkey.
 
 - **MAVLink telemetry receiver** — UDP transport, parsing with the official
   `mavlink/c_library_v2` headers (MAVLink v1 and v2 frames).
-- **Voice announcements (Russian)** via espeak-ng:
+- **Voice announcements (Russian)** via espeak-ng, or the neural
+  [piper](https://github.com/rhasspy/piper) engine (`[tts] backend = piper`,
+  one-command setup with `scripts/setup_piper.sh`):
   - flight mode change;
   - arm / disarm;
   - battery below warning and critical thresholds (with hysteresis);
@@ -47,6 +49,8 @@ status speech on a hotkey.
 - **Single-vehicle filtering** by MAVLink system id (auto-lock or explicit).
 - **Session logging** to `.tlog` (raw frames with timestamps).
 - **English UI** translation, selected automatically by system locale.
+- **System tray** (show/hide, status, mute, quit) with close-to-tray, and a
+  **global X11 hotkey** for the status speech that works without window focus.
 - **Qt Widgets UI**: live telemetry, status button, mute toggle, event log.
 
 ## Prerequisites
@@ -186,9 +190,24 @@ mavproxy.py --master tcp:127.0.0.1:5760 --out=udp:127.0.0.1:14550
 ```
 
 The window shows mode, ARM state, battery, altitude, speed, link status and
-message rate. Press `F2` (or the **Статус** button) for the status speech,
-toggle **Озвучка** to mute. Announced phrases are printed to the console log
-and to the in-window event log.
+message rate. Press `F2` (or the **Статус** button) for the status speech —
+with `[hotkey] global = true` the key is also grabbed system-wide on X11
+(XWayland), so it works while another window has focus. Toggle **Озвучка**
+to mute. Closing the window hides it to the system tray; quit via the tray
+menu (configure both in `[hotkey]` / `[ui]`). Announced phrases are printed
+to the console log and to the in-window event log.
+
+### Better voice quality (optional, piper)
+
+espeak-ng is robotic by design. For a natural neural voice run the installer
+and flip one key in the config:
+
+```bash
+./scripts/setup_piper.sh          # piper binary + ru_RU-irina-medium model
+# then in config/gcs-tts.ini:  [tts] backend = piper
+```
+
+Requires a WAV player (`sudo apt install pulseaudio-utils`, uses `paplay`).
 
 Headless run with phrases captured as WAV files:
 

@@ -45,16 +45,25 @@ AppConfig AppConfig::load(const QString &iniPath)
     cfg.antispamLinkSec = clamped(s, "antispam/link_sec", cfg.antispamLinkSec, 0, 3600);
 
     cfg.ttsEnabled = s.value("tts/enabled", cfg.ttsEnabled).toBool();
+    cfg.ttsBackend = s.value("tts/backend", cfg.ttsBackend).toString().toLower();
     cfg.ttsProgram = s.value("tts/program", cfg.ttsProgram).toString();
     cfg.ttsVoice = s.value("tts/voice", cfg.ttsVoice).toString();
     cfg.ttsSpeed = clamped(s, "tts/speed", cfg.ttsSpeed, 80, 400);
     cfg.ttsQueueLimit = clamped(s, "tts/queue_limit", cfg.ttsQueueLimit, 2, 256);
     cfg.ttsWavKeep = clamped(s, "tts/wav_keep", cfg.ttsWavKeep, 1, 10000);
+    cfg.piperBin = s.value("tts/piper_bin", cfg.piperBin).toString();
+    cfg.piperModel = s.value("tts/piper_model", cfg.piperModel).toString();
+    cfg.piperPlayCmd = s.value("tts/piper_play", cfg.piperPlayCmd).toString();
+    const double ls = s.value("tts/piper_length_scale", cfg.piperLengthScale).toDouble();
+    cfg.piperLengthScale = (ls >= 0.5 && ls <= 2.0) ? ls : cfg.piperLengthScale;
 
     cfg.logEnabled = s.value("log/enabled", cfg.logEnabled).toBool();
     cfg.logDir = s.value("log/dir", cfg.logDir).toString();
 
     cfg.statusHotkey = s.value("hotkey/status_key", cfg.statusHotkey).toString();
+    cfg.hotkeyGlobal = s.value("hotkey/global", cfg.hotkeyGlobal).toBool();
+
+    cfg.uiHideOnClose = s.value("ui/hide_on_close", cfg.uiHideOnClose).toBool();
 
     return cfg;
 }
