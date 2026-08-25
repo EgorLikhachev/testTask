@@ -21,6 +21,7 @@ jobs:
         with:
           version: '6.5.3'
           cache: true
+          dir: '${{ github.workspace }}/Qt'
 
       - name: Системные зависимости
         run: |
@@ -30,6 +31,8 @@ jobs:
           pip install pymavlink
 
       - name: Сборка + юнит-тесты
+        env:
+          QT_DIR: ${{ github.workspace }}/Qt/6.5.3/gcc_64
         run: ./scripts/build.sh
 
       - name: Синтетический интеграционный тест (без SITL)
@@ -49,6 +52,7 @@ jobs:
         with:
           version: '6.5.3'
           cache: true
+          dir: '${{ github.workspace }}/Qt'
 
       - name: Системные зависимости
         run: |
@@ -57,10 +61,12 @@ jobs:
             libegl-dev libglx-dev libxcb-xinerama0 curl p7zip-full
 
       - name: Сборка (релизная)
+        env:
+          QT_DIR: ${{ github.workspace }}/Qt/6.5.3/gcc_64
         run: ./scripts/build.sh
 
       - name: AppImage
-        run: packaging/make_appimage.sh "$HOME/Qt/6.5.3/gcc_64" build
+        run: packaging/make_appimage.sh "${{ github.workspace }}/Qt/6.5.3/gcc_64" build
 
       - uses: actions/upload-artifact@v4
         with:
