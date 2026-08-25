@@ -7,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Шагу релиза (softprops/action-gh-release) нужен write к содержимому репо.
+permissions:
+  contents: write
+
 jobs:
   build-test:
     name: Сборка, ctest, синтетический тест
